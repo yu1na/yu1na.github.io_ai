@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>순발력 테스트 게임</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100vw; height: 100vh; overflow: hidden;
+      font-family: 'Segoe UI', 'Pretendard', -apple-system, sans-serif;
+    }
+    body {
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(120deg, #667eea 0%, #764ba2 100%);
+    }
+    #game-container {
+      position: relative; width: 800px; height: 600px;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 30px; box-shadow: 0 10px 50px rgba(0,0,0,0.3);
+      overflow: hidden; transition: background 0.3s ease;
+    }
+    #game-container.waiting {
+      background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    }
+    #game-container.signal {
+      background: linear-gradient(135deg, #ff4757 0%, #ff6348 100%);
+    }
+    .modal {
+      display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85); align-items: center; justify-content: center; z-index: 100;
+    }
+    .modal.active { display: flex; }
+    .modal-content {
+      background: linear-gradient(135deg, #fff, #f5f5f5);
+      padding: 50px 60px; border-radius: 25px;
+      box-shadow: 0 10px 50px rgba(0,0,0,0.5);
+      text-align: center; max-width: 500px;
+      animation: modalSlideIn 0.3s ease;
+    }
+    @keyframes modalSlideIn {
+      from { transform: translateY(-50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .modal-title { font-size: 2.5em; font-weight: bold; margin-bottom: 20px; color: #667eea; }
+    .modal-subtitle { font-size: 1.2em; color: #7f8c8d; margin-bottom: 30px; }
+    .btn {
+      font-size: 1.2em; padding: 15px 40px; border-radius: 15px; border: none;
+      font-weight: bold; cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s; margin: 10px;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(0,0,0,0.2); }
+    .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+    .btn-secondary { background: #e0e0e0; color: #7f8c8d; }
+    .mode-buttons { display: flex; flex-direction: column; gap: 15px; margin: 30px 0; }
+    .mode-btn { width: 100%; padding: 20px; font-size: 1.1em; border-radius: 15px; border: none; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+    .mode-btn.active { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; box-shadow: 0 5px 20px rgba(102,126,234,0.4); }
+    .best-record { background: rgba(255,239,133,0.3); padding: 20px; border-radius: 15px; margin-top: 20px; }
+    .best-record-value { font-size: 2em; font-weight: bold; color: #ff6a88; font-family: 'Consolas', monospace; }
+    #game-screen { display: none; width: 100%; height: 100%; position: relative; cursor: pointer; }
+    #game-screen.active { display: block; }
+    .game-header { position: absolute; top: 0; left: 0; right: 0; padding: 20px 30px; display: flex; justify-content: space-between; align-items: center; color: #fff; font-weight: bold; z-index: 10; }
+    .center-message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #fff; width: 100%; padding: 0 40px; }
+    .main-text { font-size: 4em; font-weight: bold; margin-bottom: 20px; text-shadow: 0 4px 20px rgba(0,0,0,0.3); animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{transform:scale(1);}50%{transform:scale(1.05);} }
+    .signal-text { font-size: 5em; font-weight: bold; text-shadow: 0 4px 30px rgba(0,0,0,0.5); }
+    .number-container, .timing-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
+    .number-container.active, .timing-container.active { display: block; }
+    .number-item {
+      position: absolute; width: 60px; height: 60px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.8em; font-weight: bold; cursor: pointer;
+      transition: all 0.2s; user-select: none;
+    }
+    .number-item.clicked { background: linear-gradient(135deg, #2ed573, #26de81); animation: numberPop 0.3s ease; pointer-events: none; }
+    @keyframes numberPop { 0%{transform:scale(1);}50%{transform:scale(1.3);}100%{transform:scale(0);opacity:0;} }
+    .timing-bar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 600px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 40px; overflow: hidden; border: 3px solid rgba(255,255,255,0.5); }
+    .timing-target-zone { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 100px; height: 100%; background: rgba(46,213,115,0.5); border-left: 3px solid #2ed573; border-right: 3px solid #2ed573; }
+    .timing-bar { position: absolute; top: 0; left: 0; width: 40px; height: 100%; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 20px; box-shadow: 0 0 20px rgba(102,126,234,0.8); animation: moveBar 2s linear infinite; }
+    @keyframes moveBar { 0% { left: 0; } 50% { left: calc(100% - 40px); } 100% { left: 0; } }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <!-- 시작 모달 -->
+    <div id="start-modal" class="modal active">
+      <div class="modal-content">
+        <div class="modal-title">🎯 순발력 테스트</div>
+        <div class="modal-subtitle">당신의 반응 속도는?</div>
+        <div class="mode-buttons">
+          <button class="mode-btn active" data-mode="classic">클래식 모드</button>
+          <button class="mode-btn" data-mode="number">숫자 순서 모드</button>
+          <button class="mode-btn" data-mode="timing">타이밍 모드</button>
+        </div>
+        <div class="best-record">
+          <div>최고 기록</div>
+          <div id="best-record-display" class="best-record-value">---</div>
+        </div>
+        <button class="btn btn-primary" id="start-btn">게임 시작</button>
+      </div>
+    </div>
+
+    <!-- 게임 화면 -->
+    <div id="game-screen">
+      <div class="game-header">
+        <div class="round-info" id="round-info">라운드: 1/5</div>
+      </div>
+      <div class="center-message" id="center-message">
+        <div class="main-text" id="main-text">준비...</div>
+        <div class="sub-text" id="sub-text">화면이 빨간색으로<br>변하면 클릭하세요!</div>
+      </div>
+      <div class="number-container" id="number-container">
+        <div class="number-info" id="number-info">다음 숫자: 1</div>
+      </div>
+      <div class="timing-container" id="timing-container">
+        <div class="timing-info" id="timing-info">라운드: 1/10</div>
+        <div class="timing-bar-container">
+          <div class="timing-target-zone"></div>
+          <div class="timing-bar" id="timing-bar"></div>
+        </div>
+        <div class="timing-score-display" id="timing-score-display">100점!</div>
+        <div class="timing-instruction">바가 초록색 영역에 있을 때 클릭하세요!</div>
+      </div>
+    </div>
+
+    <!-- 결과 모달 -->
+    <div id="result-modal" class="modal">
+      <div class="modal-content">
+        <div class="result-content">
+          <div class="result-title">게임 완료! 🎉</div>
+          <div id="avg-time-label">평균 반응 속도</div>
+          <div id="avg-time" class="avg-time-value">---</div>
+          <div id="grade-badge" class="grade-badge">등급: -</div>
+          <div id="stars" class="stars">⭐⭐⭐⭐⭐</div>
+          <div id="detailed-records"></div>
+          <button class="btn btn-primary" id="retry-btn">다시하기</button>
+          <button class="btn btn-secondary" id="main-btn">메인으로</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const gameState = { mode: 'classic', round: 0, maxRounds: 5, records: [], waiting: false, canClick: false, startTime: 0, waitTimeout: null, signalTimeout: null, paused: false, numberCount: 10, currentNumber: 1, timingRound: 0, timingMaxRounds: 10, timingScores: [] };
+    const elements = {
+      container: document.getElementById('game-container'),
+      startModal: document.getElementById('start-modal'),
+      gameScreen: document.getElementById('game-screen'),
+      resultModal: document.getElementById('result-modal'),
+      startBtn: document.getElementById('start-btn'),
+      retryBtn: document.getElementById('retry-btn'),
+      mainBtn: document.getElementById('main-btn'),
+      numberContainer: document.getElementById('number-container'),
+      numberInfo: document.getElementById('number-info'),
+      timingContainer: document.getElementById('timing-container'),
+      timingBar: document.getElementById('timing-bar'),
+      timingInfo: document.getElementById('timing-info'),
+      timingScoreDisplay: document.getElementById('timing-score-display'),
+      bestRecordDisplay: document.getElementById('best-record-display'),
+      avgTime: document.getElementById('avg-time'),
+      gradeBadge: document.getElementById('grade-badge'),
+      stars: document.getElementById('stars'),
+      detailedRecords: document.getElementById('detailed-records')
+    };
+
+    const modeButtons = document.querySelectorAll('.mode-btn');
+    modeButtons.forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        modeButtons.forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        gameState.mode = btn.dataset.mode;
+      });
+    });
+
+    function startGame(){
+      gameState.records=[]; gameState.round=0;
+      elements.startModal.classList.remove('active');
+      elements.gameScreen.classList.add('active');
+      if(gameState.mode==='number'){ startNumberMode(); }
+      else if(gameState.mode==='timing'){ startTimingMode(); }
+      else{ startRound(); }
+    }
+
+    function startRound(){}
+
+    // 숫자 순서 모드
+    function startNumberMode(){
+      gameState.currentNumber=1;
+      gameState.numberStartTime=Date.now();
+      gameState.numbers=[];
+      elements.numberContainer.innerHTML='';
+      const infoDiv=document.createElement('div');
+      infoDiv.className='number-info'; infoDiv.textContent='다음 숫자: 1';
+      elements.numberContainer.appendChild(infoDiv);
+      elements.numberContainer.classList.add('active');
+      for(let i=1;i<=gameState.numberCount;i++){
+        const number=document.createElement('div');
+        number.className='number-item'; number.textContent=i; number.dataset.number=i;
+        let x,y,overlap;
+        do{
+          overlap=false;
+          x=80+Math.random()*(elements.container.offsetWidth-160);
+          y=150+Math.random()*(elements.container.offsetHeight-250);
+          for(let n of gameState.numbers){
+            const dx=x-n.x,dy=y-n.y;
+            if(Math.sqrt(dx*dx+dy*dy)<80){ overlap=true; break;}
+          }
+        }while(overlap);
+        number.style.left=x+'px'; number.style.top=y+'px';
+        number.addEventListener('click',()=>handleNumberClick(parseInt(number.dataset.number),number));
+        elements.numberContainer.appendChild(number);
+        gameState.numbers.push({x,y});
+      }
+    }
+    function handleNumberClick(num,el){
+      if(num===gameState.currentNumber){
+        el.classList.add('clicked');
+        gameState.currentNumber++;
+        if(gameState.currentNumber>gameState.numberCount){
+          const total=Date.now()-gameState.numberStartTime;
+          gameState.records.push(total);
+          setTimeout(showResult,500);
+        }else{
+          document.getElementById('number-info').textContent=`다음 숫자: ${gameState.currentNumber}`;
+        }
+      }else{
+        el.classList.add('wrong');
+        setTimeout(()=>el.classList.remove('wrong'),300);
+      }
+    }
+
+    // 타이밍 모드
+    function startTimingMode(){
+      gameState.timingRound=0; gameState.timingScores=[];
+      elements.timingContainer.classList.add('active');
+      startTimingRound();
+    }
+    function startTimingRound(){
+      gameState.timingRound++;
+      elements.timingInfo.textContent=`라운드: ${gameState.timingRound}/${gameState.timingMaxRounds}`;
+      elements.timingBar.style.animation='none';
+      void elements.timingBar.offsetWidth;
+      elements.timingBar.style.animation='moveBar 2s linear infinite';
+    }
+    function handleTimingClick(){
+      const bar=elements.timingBar;
+      const rect=bar.getBoundingClientRect();
+      const parentRect=bar.parentElement.getBoundingClientRect();
+      const center=rect.left+rect.width/2-parentRect.left;
+      const mid=parentRect.width/2;
+      const dist=Math.abs(center-mid);
+      const score=Math.max(0,Math.round(100-(dist/(parentRect.width/2))*100));
+      gameState.timingScores.push(score);
+      elements.timingScoreDisplay.textContent=`${score}점!`;
+      elements.timingScoreDisplay.classList.remove('show');
+      setTimeout(()=>elements.timingScoreDisplay.classList.add('show'),10);
+      if(gameState.timingRound<gameState.timingMaxRounds)setTimeout(startTimingRound,800);
+      else setTimeout(showResult,1000);
+    }
+
+    function showResult(){
+      elements.resultModal.classList.add('active');
+      let grade='D',stars='⭐',text='-';
+      if(gameState.mode==='number'){
+        const total=gameState.records[0];
+        const avg=Math.round(total/gameState.numberCount);
+        if(avg<500)grade='S';else if(avg<700)grade='A';else if(avg<1000)grade='B';else if(avg<1500)grade='C';
+        text=(total/1000).toFixed(2)+'초';
+      }else if(gameState.mode==='timing'){
+        const avg=Math.round(gameState.timingScores.reduce((a,b)=>a+b,0)/gameState.timingScores.length);
+        if(avg>=90)grade='S';else if(avg>=75)grade='A';else if(avg>=60)grade='B';else if(avg>=40)grade='C';
+        text=avg+'점';
+      }
+      const starMap={'S':'⭐⭐⭐⭐⭐','A':'⭐⭐⭐⭐','B':'⭐⭐⭐','C':'⭐⭐','D':'⭐'};
+      elements.avgTime.textContent=text;
+      elements.gradeBadge.textContent='등급: '+grade;
+      elements.gradeBadge.className='grade-badge grade-'+grade;
+      elements.stars.textContent=starMap[grade];
+    }
+
+    elements.startBtn.addEventListener('click',startGame);
+    elements.retryBtn.addEventListener('click',()=>location.reload());
+    elements.mainBtn.addEventListener('click',()=>location.reload());
+    elements.timingContainer.addEventListener('click',handleTimingClick);
+  </script>
+</body>
+</html>

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>총알 피하기 게임</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(120deg, #21284d, #4f81f2 80%);
+      overflow: hidden;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    #game-wrap {
+      position: relative;
+      width: 720px;
+      height: 480px;
+      background: rgba(17, 17, 40, 0.85);
+      border-radius: 30px;
+      box-shadow: 0 10px 40px #14396e77;
+      overflow: hidden;
+    }
+    #game-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #192344;
+      box-shadow: 0 6px 30px #0008;
+      border-radius: 30px;
+    }
+    .ui {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .score-ui {
+      position: absolute;
+      top: 16px;
+      left: 26px;
+      font-size: 1.5em;
+      color: #ffef85;
+      text-shadow: 0 2px 6px #19407d99;
+      font-family: 'Segoe UI Black', 'Pretendard', sans-serif;
+      user-select: none;
+    }
+    .item-ui {
+      position: absolute;
+      top: 16px;
+      right: 26px;
+      font-size: 1.22em;
+      color: #aef6ff;
+      text-shadow: 0 2px 6px #163447a5;
+      font-family: Consolas, 'Pretendard', sans-serif;
+      user-select: none;
+    }
+    .msg-ui {
+      position: absolute;
+      top: 45%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 2.4em;
+      color: #fffbe0;
+      font-family: 'Segoe UI Black', sans-serif;
+      text-shadow: 0 2px 24px #3a216c;
+      letter-spacing: 0.07em;
+      z-index: 20;
+      user-select: none;
+      opacity: 0;
+      transition: opacity 0.5s;
+    }
+    .msg-ui.active { opacity: 1; }
+    .tip-ui {
+      position: absolute;
+      bottom: 16px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 1.1em;
+      font-family: 'Segoe UI', sans-serif;
+      color: #a5cff5;
+      text-shadow: 0 2px 6px #14387677;
+      user-select: none;
+    }
+    @media (max-width: 800px) {
+      #game-wrap { width: 98vw; height: 59vw; min-height: 350px; }
+      .score-ui, .item-ui { font-size: 1em; }
+      .msg-ui { font-size: 1.3em; }
+    }
+  </style>
+</head>
+<body>
+  <div id="game-wrap">
+    <canvas id="game-canvas" width="720" height="480"></canvas>
+    <div class="ui">
+      <div class="score-ui" id="score-ui">점수: 0</div>
+      <div class="item-ui" id="item-ui">아이템 없음</div>
+      <div class="msg-ui" id="msg-ui"></div>
+      <div class="tip-ui">방향키로 이동, Shift로 아이템!  [리셋: R]</div>
+
+      <div id="top-btns" style="position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:22;pointer-events:auto;">
+        <button id="btn-pause" style="font-size:1.03em;padding:0.3em 1.3em;margin:0 5px;border-radius:14px;border:none;background:#b2c8ff;color:#09393e;font-weight:bold;box-shadow:0 3px 18px #2224;background:linear-gradient(90deg,#e0eeff 0%,#9dbbf7 100%);cursor:pointer;display:none;">일시정지</button>
+        <button id="btn-resume" style="font-size:1.03em;padding:0.3em 1.3em;margin:0 5px;border-radius:14px;border:none;background:#50fda9;color:#09393e;font-weight:bold;box-shadow:0 3px 18px #2224;background:linear-gradient(90deg,#c2ffe0 0%,#82f0ce 100%);cursor:pointer;display:none;">게임재개</button>
+        <button id="btn-restart" style="font-size:1.03em;padding:0.3em 1.3em;margin:0 5px;border-radius:14px;border:none;background:#ffb5b5;color:#09393e;font-weight:bold;box-shadow:0 3px 18px #2224;background:linear-gradient(90deg,#ffc9c9 0%,#ffbdbd 100%);cursor:pointer;display:none;">리셋</button>
+      </div>
+
+      <div id="start-modal" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(24,34,58,.88);z-index:100;align-items:center;justify-content:center;pointer-events:auto;">
+        <div style="background:#fffbe8;padding:2em 2.5em 1em 2.5em;border-radius:22px;box-shadow:0 8px 38px #2b236a66;text-align:center;">
+          <button id="btn-startmodal" style="margin:0 auto 0 0;font-size:1.3em;padding:0.8em 3em 0.7em 3em;border-radius:16px;background:#48deff;border:none;color:#134e67;font-weight:bold;cursor:pointer;">게임시작</button>
+        </div>
+      </div>
+
+      <div id="retry-modal" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(20,30,56,.85);z-index:100;align-items:center;justify-content:center;pointer-events:auto;">
+        <div style="background:#fffbe8;padding:2em 2.5em 1em 2.5em;border-radius:22px;box-shadow:0 8px 38px #2b236a66;text-align:center;">
+          <div style="color:#25374a;font-size:1.3em;font-weight:bold;margin-bottom:1.3em;">다시 시도하시겠습니까?</div>
+          <button id="btn-yes" style="margin:0 1.2em 0 0;font-size:1.1em;padding:0.5em 2.4em;border-radius:11px;background:#49e36e;border:none;color:#182a17;font-weight:bold;cursor:pointer;">YES</button>
+          <button id="btn-no" style="font-size:1.1em;padding:0.5em 2.4em;border-radius:11px;background:#fa6b5f;border:none;color:#fff;font-weight:bold;cursor:pointer;">NO</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const W = 720, H = 480, PLAYER_SIZE = 35, PLAYER_SPEED = 5, PLAYER_COLOR = "#ff5588", IMMUNE_COLOR = "#fffb59";
+    const BULLET_MIN_SPEED = 1.9, BULLET_MAX_SPEED = 3.9, BULLET_SIZE = 20, ITEM_SIZE = 26;
+    let canvas = document.getElementById('game-canvas');
+    let ctx = canvas.getContext('2d');
+
+    let state = { playing: false, score: 0, player: null, bullets: [], items: [], itemStock: 0, itemType: null, itemTimer: 0, immune: 0, ready: false };
+
+    function resetGame() {
+      Object.assign(state, {
+        playing: true, score: 0,
+        player: { x: W / 2, y: H / 2, dx: 0, dy: 0, speed: PLAYER_SPEED, lastMove: 0 },
+        bullets: [], items: [], itemStock: 0, itemType: null, itemTimer: 0, immune: 0
+      });
+      spawnBullets(9);
+      updateUI();
+      showMessage('Ready?', 900, () => showMessage('GO!', 500));
+      paused = false;
+      showTopBtns('playing');
+      startModal.style.display = 'none';
+      retryModal.style.display = 'none';
+    }
+
+    function spawnBullets(n) {
+      let pos = [['l', 0], ['r', W], ['t', 0], ['b', H]];
+      for (let i = 0; i < n; i++) {
+        let edge = pos[Math.floor(Math.random() * 4)];
+        let x = edge[0] === 'l' ? 0 : edge[0] === 'r' ? W : rand(20, W - 20);
+        let y = edge[0] === 't' ? 0 : edge[0] === 'b' ? H : rand(30, H - 30);
+        let a = angleToCenter(x, y) + rand(-.7, .7), s = rand(BULLET_MIN_SPEED, BULLET_MAX_SPEED);
+        state.bullets.push({ x, y, dx: Math.cos(a) * s, dy: Math.sin(a) * s, r: BULLET_SIZE * .5, t: 0 });
+      }
+    }
+    function angleToCenter(x, y) { return Math.atan2(H / 2 - y, W / 2 - x); }
+    function rand(a, b) { return Math.random() * (b - a) + a; }
+
+    let paused = false,
+        nextItemTime = 400 + Math.floor(Math.random() * 800),
+        itemTimerCount = 0,
+        gameLoopRunning = false;
+
+    function gameLoop() {
+      if (!gameLoopRunning) { gameLoopRunning = true; animate(); }
+      function animate() {
+        ctx.clearRect(0, 0, W, H);
+        if (state.playing) {
+          // ready면 모든 움직임 고정(현재 좌표에서 static하게 그림만)
+          if (!state.ready) {
+            for (let b of state.bullets) {
+              b.x += b.dx * (paused ? 0 : 1);
+              b.y += b.dy * (paused ? 0 : 1);
+              b.t += (paused ? 0 : 1);
+            }
+            for (let itm of state.items) { }
+            // 플레이어 이동
+            let p = state.player;
+            p.x += p.dx; p.y += p.dy;
+            if (p.x < PLAYER_SIZE / 2) p.x = PLAYER_SIZE / 2; if (p.x > W - PLAYER_SIZE / 2) p.x = W - PLAYER_SIZE / 2;
+            if (p.y < PLAYER_SIZE / 2) p.y = PLAYER_SIZE / 2; if (p.y > H - PLAYER_SIZE / 2) p.y = H - PLAYER_SIZE / 2;
+          }
+          // 항상 그리기만(ready 중 좌표는 변하지 않지만 그림은 나옴)
+          for (let b of state.bullets) {
+            ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+            ctx.fillStyle = '#7afcff'; ctx.globalAlpha = 0.93 + 0.08 * Math.sin(b.t / 4); ctx.fill();
+          } ctx.globalAlpha = 1;
+          for (let itm of state.items) {
+            ctx.save(); ctx.translate(itm.x, itm.y);
+            ctx.rotate(performance.now() / 310);
+            ctx.beginPath();
+            if (itm.type === 'boost') { ctx.strokeStyle = '#6aff5e'; ctx.lineWidth = 3; ctx.arc(0, 0, ITEM_SIZE / 2, 0, Math.PI * 2); ctx.stroke(); }
+            else { ctx.strokeStyle = '#ffe90d'; ctx.setLineDash([4, 4]); ctx.lineWidth = 3; ctx.arc(0, 0, ITEM_SIZE / 2, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+            ctx.font = '20px Segoe UI Emoji'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(itm.type === 'boost' ? '💨' : '🦺', 0, 0); ctx.restore();
+          }
+          // 플레이어
+          ctx.save(); ctx.translate(state.player.x, state.player.y);
+          ctx.font = '37px Segoe UI Emoji'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          if (state.immune > 0) { ctx.globalAlpha = 0.8 + .2 * Math.sin(performance.now() / 100); ctx.strokeStyle = IMMUNE_COLOR; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, PLAYER_SIZE / 2 + 8, 0, Math.PI * 2); ctx.stroke(); }
+          ctx.globalAlpha = 1; ctx.fillText('🐱', 0, 2); ctx.restore();
+        } else {
+          ctx.globalAlpha = 0.33; ctx.fillStyle = "#292c43"; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
+        }
+        requestAnimationFrame(animate);
+      }
+    }
+    gameLoop();
+
+    function movePlayer() {
+      let p = state.player;
+      p.x += p.dx; p.y += p.dy;
+      if (p.x < PLAYER_SIZE / 2) p.x = PLAYER_SIZE / 2; if (p.x > W - PLAYER_SIZE / 2) p.x = W - PLAYER_SIZE / 2;
+      if (p.y < PLAYER_SIZE / 2) p.y = PLAYER_SIZE / 2; if (p.y > H - PLAYER_SIZE / 2) p.y = H - PLAYER_SIZE / 2;
+    }
+
+    function checkCollisions() {
+      for (let b of state.bullets) {
+        if (state.immune > 0) continue;
+        let d = Math.hypot(state.player.x - b.x, state.player.y - b.y);
+        if (d < PLAYER_SIZE * .45 + b.r) {
+          state.playing = false;
+          showRetryModal();
+          return;
+        }
+      }
+      state.items = state.items.filter(itm => {
+        let d = Math.hypot(state.player.x - itm.x, state.player.y - itm.y);
+        if (d < PLAYER_SIZE * .6 + ITEM_SIZE / 2) {
+          state.itemStock++; itmGet(itm.type);
+          return false;
+        } return true;
+      });
+    }
+    function itmGet(t) { state.itemType = t; state.itemTimer = 0; document.getElementById('item-ui').textContent = 'SHIFT: ' + (t === 'boost' ? '속도UP!' : '무적!'); }
+
+    function useItem() {
+      if (state.itemStock > 0 && state.itemType && state.playing) {
+        if (state.itemType === 'boost') { state.player.speed = 8; state.itemTimer = 150; }
+        else { state.immune = 150; state.itemTimer = 100; }
+        state.itemStock--; updateUI();
+      }
+    }
+
+    function updateBulletsAndItems() {
+      // 총알 이동+화면밖 제거+새 총알생성
+      state.bullets = state.bullets.filter(b => b.x > -50 && b.x < W + 50 && b.y > -50 && b.y < H + 50);
+      if (state.playing && (Math.random() < 0.028)) spawnBullets(1 + Math.floor(Math.random() * 2));
+      // 아이템 등장
+      if (state.playing && state.items.length < 1 && (Math.random() < 0.009 + state.score / 2800)) {
+        let t = Math.random() < 0.58 ? 'boost' : 'shield';
+        let x = rand(40, W - 40), y = rand(38, H - 38);
+        state.items.push({ type: t, x, y });
+      }
+    }
+
+    function updateItemTimers() {
+      if (!state.playing) return;
+      if (state.itemTimer > 0) {
+        state.itemTimer--;
+        if (state.itemType === 'boost') {
+          if (state.itemTimer <= 0) { state.player.speed = PLAYER_SPEED; state.itemType = null; updateUI(); }
+        } else if (state.itemType === 'shield') {
+          if (state.itemTimer <= 0) { state.immune = 0; state.itemType = null; updateUI(); }
+        }
+      }
+      if (state.immune > 0) state.immune--;
+    }
+
+    // showMessage 함수에서 ready상태 처리
+    function showMessage(msg, time = 1400, cb) {
+      let m = document.getElementById('msg-ui'); m.textContent = msg; m.classList.add('active');
+      if (msg === 'Ready?' || msg === 'GO!') { state.ready = true; }
+      setTimeout(() => { m.classList.remove('active'); if (msg === 'Ready?' || msg === 'GO!') { state.ready = false; } if (cb) cb(); }, time);
+    }
+
+    function updateUI() {
+      document.getElementById('score-ui').textContent = '점수: ' + state.score;
+      document.getElementById('item-ui').textContent = state.itemStock > 0 ? 'SHIFT: ' + (state.itemType === 'boost' ? '속도UP!' : '무적!') : '아이템 없음';
+    }
+
+    const btnPause = document.getElementById('btn-pause');
+    const btnResume = document.getElementById('btn-resume');
+    const btnRestart = document.getElementById('btn-restart');
+    const btnStartModal = document.getElementById('btn-startmodal');
+    const startModal = document.getElementById('start-modal');
+    const retryModal = document.getElementById('retry-modal');
+    // ✅ 핵심 수정: 함수가 아니라 직접 요소 참조
+    const btnYes = document.getElementById('btn-yes');
+    const btnNo = document.getElementById('btn-no');
+
+    // showOnlyStartButton: startModal만 표시하며, 상단 버튼들은 모두 숨긴다
+    function showOnlyStartButton() {
+      document.getElementById('top-btns').style.display = 'none';
+      startModal.style.display = 'flex';
+    }
+    function showTopBtns(playState) {
+      document.getElementById('top-btns').style.display = playState !== 'none' ? 'block' : 'none';
+      btnPause.style.display = playState === 'playing' ? '' : 'none';
+      btnResume.style.display = playState === 'paused' ? '' : 'none';
+      btnRestart.style.display = playState !== 'none' ? '' : 'none';
+    }
+
+    function showStartModal() { startModal.style.display = 'flex'; startModal.style.pointerEvents = 'auto'; }
+    function hideStartModal() { startModal.style.display = 'none'; startModal.style.pointerEvents = 'none'; }
+
+    btnPause.onclick = function () {
+      if (!state.playing || paused) return;
+      paused = true;
+      showTopBtns('paused');
+    };
+    btnResume.onclick = function () {
+      if (!state.playing) return;
+      paused = false;
+      showTopBtns('playing');
+    };
+    btnRestart.onclick = function () { resetGame(); };
+    btnStartModal.onclick = function () {
+      startModal.style.display = 'none';
+      showTopBtns('playing');
+      resetGameWithCountdown();
+    };
+
+    let keys = {};
+    document.addEventListener('keydown', e => {
+      if (!state.playing && (e.key === 'r' || e.key === 'R')) return resetGame();
+      if (!state.playing || paused || retryModal.style.display === "flex") return;
+      keys[e.key] = true;
+      if (e.key === 'Shift') useItem();
+    });
+    document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+    let scoreIntervalCounter = 0;
+    setInterval(() => {
+      if (!state.playing || paused || retryModal.style.display === "flex" || state.ready) return;
+      let p = state.player;
+      let dx = 0, dy = 0;
+      if (keys['ArrowLeft']) dx--;
+      if (keys['ArrowRight']) dx++;
+      if (keys['ArrowUp']) dy--;
+      if (keys['ArrowDown']) dy++;
+      let spd = p.speed || PLAYER_SPEED;
+      if (Math.abs(dx) + Math.abs(dy) > 1) { dx /= Math.sqrt(2); dy /= Math.sqrt(2); }
+      p.dx = dx * spd; p.dy = dy * spd;
+
+      scoreIntervalCounter = (scoreIntervalCounter + 1) % 2;
+      if (scoreIntervalCounter === 0) state.score++;
+      updateBulletsAndItems();
+      updateItemTimers();
+      checkCollisions();
+      updateUI();
+      itemTimerCount++;
+      if (state.playing && state.items.length < 1 && itemTimerCount >= nextItemTime) {
+        let t = Math.random() < 0.58 ? 'boost' : 'shield';
+        let x = rand(40, W - 40), y = rand(38, H - 38);
+        state.items.push({ type: t, x, y });
+        nextItemTime = 400 + Math.floor(Math.random() * 800);
+        itemTimerCount = 0;
+      }
+    }, 50);
+
+    // YES/NO 버튼에 중복 바인딩 방지ㄱ
+    let yesBound = false, noBound = false;
+    if (!yesBound && btnYes) {
+      btnYes.addEventListener('click', function () {
+        retryModal.style.display = "none";
+        showTopBtns('playing');
+        startModal.style.display = 'none';
+        resetGameWithCountdown();
+      });
+      yesBound = true;
+    }
+    if (!noBound && btnNo) {
+      btnNo.addEventListener('click', function () {
+        retryModal.style.display = "none";
+        paused = true;
+        state.playing = false;
+        showOnlyStartButton();
+        showTopBtns('none');
+      });
+      noBound = true;
+    }
+
+    function showRetryModal() {
+      retryModal.style.display = "flex";
+      retryModal.style.pointerEvents = 'auto';
+      setTimeout(() => {
+        if (btnYes) btnYes.focus();
+      }, 300);
+    }
+
+    // 새 함수: 게임 카운트다운 시작하는 리셋
+    function resetGameWithCountdown() {
+      Object.assign(state, {
+        playing: true, score: 0,
+        player: { x: W / 2, y: H / 2, dx: 0, dy: 0, speed: PLAYER_SPEED, lastMove: 0 },
+        bullets: [], items: [], itemStock: 0, itemType: null, itemTimer: 0, immune: 0, ready: false
+      });
+      spawnBullets(9);
+      updateUI();
+      // 카운트다운
+      showMessage('Ready?', 900, () => showMessage('GO!', 500));
+      paused = false;
+      showTopBtns('playing');
+      startModal.style.display = 'none';
+      retryModal.style.display = "none";
+    }
+
+    resetGame();
+  </script>
+</body>
+</html>
